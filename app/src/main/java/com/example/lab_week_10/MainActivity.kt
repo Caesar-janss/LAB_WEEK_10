@@ -3,6 +3,7 @@ package com.example.lab_week_10
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
@@ -11,7 +12,9 @@ import com.example.lab_week_10.database.Total
 import com.example.lab_week_10.database.TotalDatabase
 import com.example.lab_week_10.database.TotalObject
 import com.example.lab_week_10.viewmodels.TotalViewModel
+import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
@@ -19,72 +22,76 @@ class MainActivity : AppCompatActivity() {
     private lateinit var db: TotalDatabase
 
     companion object {
-        const val ID: Long = 1
+        const val ID = 1L
+    }
+
+    private fun getDate(): String {
+        return SimpleDateFormat("dd MMM yyyy HH:mm:ss", Locale.getDefault())
+            .format(Date())
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // init database
         db = Room.databaseBuilder(
             applicationContext,
             TotalDatabase::class.java,
-            "total-database"
+            "total-db"
         ).allowMainThreadQueries().build()
 
         viewModel = ViewModelProvider(this).get(TotalViewModel::class.java)
 
-        initializeValueFromDatabase()
-        prepareViewModel()
+        loadFromDatabase()
+        observeLiveData()
+        setupButton()
     }
 
-    private fun updateText(total: Int) {
-        findViewById<TextView>(R.id.text_total).text =
-            getString(R.string.text_total, total)
-    }
-
-    private fun prepareViewModel() {
-        viewModel.total.observe(this, Observer { total ->
-            updateText(total)
-        })
-
-        findViewById<Button>(R.id.button_increment).setOnClickListener {
-            viewModel.incrementTotal()
+    private fun loadFromDatabase() {
+        val record = db.totalDao().getTotal(ID)
+        if (record == null) {
+            val newData = Total(ID, TotalObject(0, getDate()))
+            db.totalDao().insert(newData)
+            viewModel.setTotal(0)
+            viewModel.setDate(newData.total.date)
+        } else {
+            viewModel.setTotal(record.total.value)
+            viewModel.setDate(record.total.date)
         }
     }
 
-    private fun initializeValueFromDatabase() {
-        val record = db.totalDao().getTotal(ID)
+    private fun observeLiveData() {
+        viewModel.total.observe(this, Observer { total ->
+            findViewById<TextView>(R.id.text_total).text =
+                "Total: $total"
 
-        if (record == null) {
-            // pertama kali install
-            db.totalDao().insert(
-                Total(
-                    id = ID,
-                    total = TotalObject(
-                        value = 0,
-                        date = Date().toString()
-                    )
-                )
-            )
-            viewModel.setTotal(0)
-        } else {
-            viewModel.setTotal(record.total.value)
+            // BONUS: Toast setiap perubahan
+            Toast.makeText(this, "Total berubah: $total", Toast.LENGTH_SHORT).show()
+        })
+
+        viewModel.date.observe(this, Observer { date ->
+            findViewById<TextView>(R.id.text_date).text =
+                "Updated: $date"
+        })
+    }
+
+    private fun setupButton() {
+        findViewById<Button>(R.id.button_increment).setOnClickListener {
+            val now = getDate()
+            viewModel.incrementTotal(now)
         }
     }
 
     override fun onPause() {
         super.onPause()
-        val curValue = viewModel.total.value ?: 0
+
+        val total = viewModel.total.value ?: 0
+        val date = viewModel.date.value ?: getDate()
 
         db.totalDao().update(
             Total(
                 id = ID,
-                total = TotalObject(
-                    value = curValue,
-                    date = Date().toString()
-                )
+                total = TotalObject(total, date)
             )
         )
     }
