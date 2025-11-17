@@ -16,7 +16,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // PERBAIKAN — cara paling stabil untuk ambil ViewModel
         viewModel = ViewModelProvider(this).get(TotalViewModel::class.java)
 
         prepareViewModel()
@@ -27,10 +26,11 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.text_total, total)
     }
 
-    private fun prepareViewModel(){
-        viewModel.total.observe(this) { total ->
+    private fun prepareViewModel() {
+        viewModel.total.observe(this, Observer { total ->
             updateText(total)
-        }
+        })
+
         findViewById<Button>(R.id.button_increment).setOnClickListener {
             viewModel.incrementTotal()
         }
